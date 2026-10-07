@@ -32,6 +32,12 @@ start:
     call ExitProcess
 
 %include "platform.asm"
+%include "math.asm"
 %include "palette.asm"
 %include "gfx2d.asm"
+%include "blocks.asm"
+%include "textures.asm"
+%include "world.asm"
+%include "mesh.asm"
+%include "render.asm"
 %include "game.asm"

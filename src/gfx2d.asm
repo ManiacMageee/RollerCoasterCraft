@@ -284,8 +284,12 @@ int_to_str:
 draw_int:
     FRAME 0
     mov ebx, edx
+    mov r12d, r8d
+    mov r13d, r9d
     call int_to_str
     mov rcx, rax
     mov edx, ebx
+    mov r8d, r12d
+    mov r9d, r13d
     call draw_text_shadow
     ENDFRAME
