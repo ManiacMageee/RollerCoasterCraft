@@ -380,30 +380,63 @@ game_frame:
     mov dword [fps_counter], 0
     mov dword [fps_timer], 0
 .fps_ok:
-    ; mouse capture
-    cmp byte [mouse_clicked], 0
-    je .nocap
-    call platform_capture_mouse
-.nocap:
-    cmp byte [keys_pressed+VK_ESCAPE], 0
-    je .noesc
-    call platform_release_mouse
-.noesc:
+    cmp dword [ui_open], UI_TITLE
+    jne .not_title
+    call title_frame
+    ENDFRAME
+.not_title:
     cmp byte [keys_pressed+VK_F3], 0
     je .nof3
     xor dword [show_debug], 1
 .nof3:
-    cmp byte [keys_pressed+0x73], 0     ; F4: debug fly mode
-    je .nof4
-    xor dword [pl_fly], 1
-.nof4:
     call stream_chunks
     cmp dword [loading], 0
     jne .skip_sim
+
+    ; ---- input that depends on the UI state
+    cmp dword [ui_open], UI_NONE
+    jne .ui_input_done
+    cmp byte [mouse_captured], 0
+    jne .captured
+    cmp byte [mouse_clicked], 0
+    je .ui_input_done
+    call platform_capture_mouse
+    mov dword [mouse_clicked], 0        ; that click only grabs the mouse
+    jmp .ui_input_done
+.captured:
+    cmp byte [keys_pressed+VK_ESCAPE], 0
+    je .noesc
+    mov dword [ui_open], UI_PAUSE
+    call platform_release_mouse
+    jmp .ui_input_done
+.noesc:
+    cmp byte [keys_pressed+'E'], 0
+    je .noe
+    xor ecx, ecx
+    call ui_open_inventory
+    mov byte [keys_pressed+'E'], 0
+    jmp .ui_input_done
+.noe:
+    cmp byte [keys_pressed+0x73], 0     ; F4: debug fly mode
+    je .ui_input_done
+    xor dword [pl_fly], 1
+.ui_input_done:
+
+    ; ---- simulation (frozen while paused)
+    cmp dword [ui_open], UI_PAUSE
+    je .skip_sim
+    call world_tick
+    cmp dword [ui_open], UI_DEAD
+    je .skip_sim
+    cmp dword [ui_open], UI_NONE
+    jne .no_look
     call mouse_look
     call hotbar_input
+.no_look:
     movss xmm0, [frame_dt]
     call player_physics
+    cmp dword [ui_open], UI_NONE
+    jne .skip_sim
     movss xmm0, [frame_dt]
     call player_interact
 .skip_sim:
@@ -412,14 +445,41 @@ game_frame:
     cmp dword [loading], 0
     jne .loading_screen
     call render_world
+    call render_mobs
+    call render_effects
+    cmp dword [ui_open], UI_NONE
+    jne .no_overlay
     call draw_crack_overlay
     call draw_target_outline
     call draw_crosshair
+.no_overlay:
+    call draw_hurt_flash
+    cmp dword [ui_open], UI_DEAD
+    je .no_hud
     call draw_hud
+.no_hud:
     cmp dword [show_debug], 0
-    je .out
+    je .ui
     call draw_debug
-.out:
+.ui:
+    mov eax, [ui_open]
+    cmp eax, UI_INV
+    je .inv
+    cmp eax, UI_TABLE
+    je .inv
+    cmp eax, UI_PAUSE
+    je .pause
+    cmp eax, UI_DEAD
+    je .dead
+    ENDFRAME
+.inv:
+    call ui_inventory_frame
+    ENDFRAME
+.pause:
+    call ui_pause_frame
+    ENDFRAME
+.dead:
+    call ui_dead_frame
     ENDFRAME
 .loading_screen:
     xor ecx, ecx
@@ -538,10 +598,19 @@ mob_in_cell:
     ret
 sfx_break:
 sfx_place:
-ui_open_inventory:
+sfx_click:
+quit_to_title:
+player_respawn:
+world_tick:
+render_mobs:
+render_effects:
+draw_hurt_flash:
+title_frame:
     ret
 section .bss
-ui_open     resb 4
+ui_open     resd 1
 pl_health   resd 1
 pl_hunger   resd 1
+music_enabled resd 1
+day_count   resd 1
 section .text

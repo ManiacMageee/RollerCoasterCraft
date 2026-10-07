@@ -296,15 +296,18 @@ draw_slot:
     mov qword [ARG(5)], 6
     call shade_rect
     ; contents
+    lea rax, [inv_dur]
+    movzx edx, word [rax+r14*2]
     lea rax, [inv_item]
     movzx ecx, byte [rax+r14]
     lea rax, [inv_count]
     movzx ebx, byte [rax+r14]
+    mov r14d, edx
     call draw_slot_contents
     ENDFRAME
 
-; draw_slot_contents(ecx = item, ebx = count, r12d/r13d = slot x/y, r14 = slot)
-; (shares draw_slot's registers; r14 = -1 for "no durability")
+; draw_slot_contents(ecx = item, ebx = count, r12d/r13d = slot x/y,
+;                    r14d = durability (-1 = don't show))
 draw_slot_contents:
     FRAME 32
     test ecx, ecx
@@ -335,8 +338,7 @@ draw_slot_contents:
     js .out
     call item_max_dur
     mov ecx, eax
-    lea rax, [inv_dur]
-    movzx eax, word [rax+r14*2]
+    mov eax, r14d
     cmp eax, ecx
     jae .out
     imul eax, eax, 28

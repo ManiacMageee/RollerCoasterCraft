@@ -43,4 +43,5 @@ start:
 %include "items.asm"
 %include "player.asm"
 %include "hud.asm"
+%include "ui.asm"
 %include "game.asm"
