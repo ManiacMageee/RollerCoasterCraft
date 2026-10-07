@@ -25,6 +25,11 @@ TX_COBBLES  equ 15  ; border, base, range
 TX_SEED     equ 16  ; n
 TX_LINE     equ 17  ; x0, y0, x1, y1, colour
 TX_CRACKS   equ 18  ; stage (0..7)
+TX_ACCENT   equ 19  ; colour  (sets the colour that ACC stands for)
+TX_HLINE    equ 20  ; y, x0, x1, colour
+ACC         equ 0xF0 ; colour placeholder = current accent
+TX_CALL     equ 21  ; dw offset of a sub-program (one level deep)
+TX_TINT     equ 22  ; x0, y0, x1, y1, colour: recolour opaque texels
 
 section .data
 tex_programs:
@@ -71,6 +76,31 @@ tex_programs:
     dw T_CRACK0+5,   tp_crack5 - tex_programs
     dw T_CRACK0+6,   tp_crack6 - tex_programs
     dw T_CRACK0+7,   tp_crack7 - tex_programs
+    dw T_I_STICK,    tp_i_stick - tex_programs
+    dw T_I_COAL,     tp_i_coal - tex_programs
+    dw T_I_IRON,     tp_i_iron - tex_programs
+    dw T_I_APPLE,    tp_i_apple - tex_programs
+    dw T_I_BACON,    tp_i_bacon - tex_programs
+    dw T_I_STEAK,    tp_i_steak - tex_programs
+    dw T_I_MUSH,     tp_i_mush - tex_programs
+    dw T_I_PICK+0,   tp_pick_w - tex_programs
+    dw T_I_PICK+1,   tp_pick_s - tex_programs
+    dw T_I_PICK+2,   tp_pick_i - tex_programs
+    dw T_I_AXE+0,    tp_axe_w - tex_programs
+    dw T_I_AXE+1,    tp_axe_s - tex_programs
+    dw T_I_AXE+2,    tp_axe_i - tex_programs
+    dw T_I_SHOVEL+0, tp_shovel_w - tex_programs
+    dw T_I_SHOVEL+1, tp_shovel_s - tex_programs
+    dw T_I_SHOVEL+2, tp_shovel_i - tex_programs
+    dw T_I_SWORD+0,  tp_sword_w - tex_programs
+    dw T_I_SWORD+1,  tp_sword_s - tex_programs
+    dw T_I_SWORD+2,  tp_sword_i - tex_programs
+    dw T_HEART_FULL, tp_heart_full - tex_programs
+    dw T_HEART_HALF, tp_heart_half - tex_programs
+    dw T_HEART_EMPTY, tp_heart_empty - tex_programs
+    dw T_FOOD_FULL,  tp_food_full - tex_programs
+    dw T_FOOD_HALF,  tp_food_half - tex_programs
+    dw T_FOOD_EMPTY, tp_food_empty - tex_programs
     dw 0xFFFF, 0
 
 tp_stone:   db TX_SEED,1, TX_NOISE,R_GREY+6,3, TX_SPECKS,10,2,R_GREY+4,2, TX_SPECKS,8,1,R_GREY+9,2, TX_END
@@ -108,6 +138,71 @@ tp_canyon2: db TX_SEED,31, TX_ROWBANDS,R_PURPLE+7,R_PINK+7,4,3, TX_SPECKS,8,1,R_
 tp_iron_block: db TX_SEED,32, TX_NOISE,R_GREY+12,2, TX_BORDER,R_GREY+8, TX_PIXEL,2,2,R_GREY+6, TX_PIXEL,13,2,R_GREY+6, TX_PIXEL,2,13,R_GREY+6, TX_PIXEL,13,13,R_GREY+6, TX_END
 tp_brick:   db TX_SEED,33, TX_BRICKS,R_GREY+9,R_RED+6,3, TX_END
 tp_lantern: db TX_SEED,34, TX_NOISE,R_ORANGE+12,4, TX_SPECKS,6,2,R_SAND+15,1, TX_BORDER,R_BARK+4, TX_HSTRIPE,8,7,R_BARK+4, TX_VSTRIPE,8,7,R_BARK+4, TX_END
+; ---- item icons (transparent background)
+tp_i_stick: db TX_NOISE,0,1, TX_LINE,3,13,12,4,R_BROWN+9, TX_LINE,4,13,13,4,R_BROWN+6, TX_END
+tp_i_coal:  db TX_NOISE,0,1, TX_RECT,4,5,12,12,R_GREY+1,3, TX_RECT,5,4,10,5,R_GREY+2,2, TX_PIXEL,6,7,R_GREY+6, TX_PIXEL,9,9,R_GREY+5, TX_END
+tp_i_iron:  db TX_NOISE,0,1, TX_RECT,2,7,14,12,R_GREY+12,2, TX_HLINE,6,4,12,R_GREY+15, TX_HLINE,12,2,13,R_GREY+8, TX_END
+tp_i_apple: db TX_NOISE,0,1, TX_RECT,4,5,12,13,R_RED+8,3, TX_HLINE,4,5,10,R_RED+9, TX_HLINE,13,5,10,R_RED+6, TX_PIXEL,5,6,R_RED+14, TX_LINE,8,2,8,4,R_BARK+5, TX_PIXEL,9,2,R_GREEN+9, TX_PIXEL,10,1,R_GREEN+9, TX_END
+tp_i_bacon: db TX_NOISE,0,1, TX_RECT,3,4,13,12,R_PINK+10,2, TX_HLINE,6,3,12,R_SNOW+14, TX_HLINE,9,3,12,R_RED+9, TX_END
+tp_i_steak: db TX_NOISE,0,1, TX_RECT,3,4,12,11,R_RED+7,3, TX_HLINE,4,4,11,R_SNOW+13, TX_LINE,11,10,14,13,R_SNOW+14, TX_PIXEL,14,14,R_SNOW+15, TX_END
+tp_i_mush:  db TX_NOISE,0,1, TX_RECT,3,3,13,8,R_PINK+10,3, TX_PIXEL,5,4,R_PINK+15, TX_PIXEL,9,5,R_PINK+15, TX_RECT,6,8,10,14,R_SKIN+12,2, TX_END
+; tools: handle from bottom-left, head in the accent colour
+%macro TOOL 3                       ; label, accent, body
+%1: db TX_ACCENT,%2, TX_NOISE,0,1, TX_CALL
+    dw %3 - tex_programs
+    db TX_END
+%endmacro
+TOOL tp_pick_w, R_BROWN+11, tb_pick
+TOOL tp_pick_s, R_GREY+8, tb_pick
+TOOL tp_pick_i, R_GREY+14, tb_pick
+TOOL tp_axe_w, R_BROWN+11, tb_axe
+TOOL tp_axe_s, R_GREY+8, tb_axe
+TOOL tp_axe_i, R_GREY+14, tb_axe
+TOOL tp_shovel_w, R_BROWN+11, tb_shovel
+TOOL tp_shovel_s, R_GREY+8, tb_shovel
+TOOL tp_shovel_i, R_GREY+14, tb_shovel
+TOOL tp_sword_w, R_BROWN+11, tb_sword
+TOOL tp_sword_s, R_GREY+8, tb_sword
+TOOL tp_sword_i, R_GREY+14, tb_sword
+tb_pick:    db TX_LINE,2,14,11,5,R_BARK+7, TX_LINE,3,14,12,5,R_BARK+4
+            db TX_HLINE,1,5,10,ACC, TX_HLINE,2,4,11,ACC, TX_LINE,11,2,14,5,ACC, TX_LINE,12,1,15,4,ACC
+            db TX_LINE,14,5,14,10,ACC, TX_LINE,15,5,15,9,ACC, TX_LINE,4,2,1,5,ACC, TX_END
+tb_axe:     db TX_LINE,3,14,11,6,R_BARK+7, TX_LINE,4,14,12,6,R_BARK+4
+            db TX_RECT,8,1,13,7,ACC,1, TX_RECT,12,2,15,9,ACC,1, TX_LINE,8,1,13,1,R_GREY+15, TX_END
+tb_shovel:  db TX_LINE,2,14,9,7,R_BARK+7, TX_LINE,3,14,10,7,R_BARK+4
+            db TX_RECT,9,2,14,7,ACC,1, TX_LINE,9,7,11,9,ACC, TX_LINE,13,1,15,3,ACC, TX_END
+tb_sword:   db TX_LINE,4,11,14,1,ACC, TX_LINE,5,11,15,1,ACC, TX_LINE,4,10,13,1,ACC
+            db TX_LINE,2,9,6,13,R_BARK+3, TX_LINE,3,9,7,13,R_BARK+3
+            db TX_LINE,1,14,4,11,R_BARK+7, TX_PIXEL,1,15,R_BARK+5, TX_END
+tp_heart_full:  db TX_NOISE,0,1, TX_CALL
+                dw tb_heart - tex_programs
+                db TX_END
+tp_heart_half:  db TX_NOISE,0,1, TX_CALL
+                dw tb_heart - tex_programs
+                db TX_TINT,8,0,16,16,R_GREY+3, TX_END
+tp_heart_empty: db TX_NOISE,0,1, TX_CALL
+                dw tb_heart - tex_programs
+                db TX_TINT,0,0,16,16,R_GREY+3, TX_END
+tb_heart:
+    db TX_HLINE,2,3,5,R_RED+9, TX_HLINE,2,10,12,R_RED+9
+    db TX_HLINE,3,2,6,R_RED+9, TX_HLINE,3,9,13,R_RED+9
+    db TX_HLINE,4,1,14,R_RED+9, TX_HLINE,5,1,14,R_RED+9, TX_HLINE,6,1,14,R_RED+9
+    db TX_HLINE,7,2,13,R_RED+8, TX_HLINE,8,3,12,R_RED+8, TX_HLINE,9,4,11,R_RED+7
+    db TX_HLINE,10,5,10,R_RED+7, TX_HLINE,11,6,9,R_RED+6, TX_HLINE,12,7,8,R_RED+6
+    db TX_PIXEL,3,4,R_RED+14, TX_PIXEL,4,3,R_RED+14, TX_END
+tp_food_full:   db TX_NOISE,0,1, TX_CALL
+                dw tb_food - tex_programs
+                db TX_END
+tp_food_half:   db TX_NOISE,0,1, TX_CALL
+                dw tb_food - tex_programs
+                db TX_TINT,8,0,16,16,R_GREY+3, TX_END
+tp_food_empty:  db TX_NOISE,0,1, TX_CALL
+                dw tb_food - tex_programs
+                db TX_TINT,0,0,16,16,R_GREY+3, TX_END
+tb_food:
+    db TX_RECT,6,2,13,9,R_ORANGE+6,3, TX_HLINE,1,7,12,R_ORANGE+7, TX_HLINE,9,7,12,R_ORANGE+4
+    db TX_PIXEL,8,3,R_ORANGE+12, TX_LINE,3,13,6,10,R_SNOW+14, TX_LINE,4,13,7,10,R_SNOW+13
+    db TX_PIXEL,2,13,R_SNOW+15, TX_PIXEL,3,14,R_SNOW+15, TX_PIXEL,2,14,R_SNOW+15, TX_END
 tp_crack0:  db TX_CRACKS,0, TX_END
 tp_crack1:  db TX_CRACKS,1, TX_END
 tp_crack2:  db TX_CRACKS,2, TX_END
@@ -120,6 +215,8 @@ tp_crack7:  db TX_CRACKS,7, TX_END
 section .bss
 alignb 64
 tex_atlas   resb NUM_TILES*256
+tex_ret     resq 1                  ; return address of TX_CALL (0 = none)
+tex_accent  resb 1
 
 section .text
 
@@ -212,8 +309,86 @@ tex_run:
     je .line
     cmp eax, TX_CRACKS
     je .cracks
+    cmp eax, TX_ACCENT
+    je .accent
+    cmp eax, TX_HLINE
+    je .hline
+    cmp eax, TX_CALL
+    je .call
+    cmp eax, TX_TINT
+    je .tint
 .end:
+    mov rax, [tex_ret]
+    test rax, rax
+    jz .finish
+    mov rsi, rax
+    mov qword [tex_ret], 0
+    jmp .op
+.finish:
     ENDFRAME
+
+.accent:
+    mov al, [rsi]
+    mov [tex_accent], al
+    inc rsi
+    jmp .op
+
+.call:
+    movzx eax, word [rsi]
+    add rsi, 2
+    mov [tex_ret], rsi
+    lea rsi, [tex_programs]
+    add rsi, rax
+    jmp .op
+
+; ---- HLINE y, x0, x1 (inclusive), colour
+.hline:
+    movzx eax, byte [rsi]
+    shl eax, 4
+    movzx ecx, byte [rsi+1]
+    movzx edx, byte [rsi+2]
+    mov r8b, [rsi+3]
+    cmp r8b, ACC
+    jne .hl_c
+    mov r8b, [tex_accent]
+.hl_c:
+    add rsi, 4
+.hl_l:
+    cmp ecx, edx
+    ja .op
+    lea r9d, [eax+ecx]
+    mov [r12+r9], r8b
+    inc ecx
+    jmp .hl_l
+
+; ---- TINT x0, y0, x1, y1, colour: recolour non-transparent texels
+.tint:
+    movzx r15d, byte [rsi+1]
+.tn_y:
+    movzx eax, byte [rsi+3]
+    cmp r15d, eax
+    jae .tn_done
+    movzx ebx, byte [rsi]
+.tn_x:
+    movzx eax, byte [rsi+2]
+    cmp ebx, eax
+    jae .tn_ny
+    mov eax, r15d
+    shl eax, 4
+    add eax, ebx
+    cmp byte [r12+rax], 0
+    je .tn_skip
+    mov dl, [rsi+4]
+    mov [r12+rax], dl
+.tn_skip:
+    inc ebx
+    jmp .tn_x
+.tn_ny:
+    inc r15d
+    jmp .tn_y
+.tn_done:
+    add rsi, 5
+    jmp .op
 
 .seed:
     movzx eax, byte [rsi]
@@ -256,6 +431,10 @@ tex_run:
     mov ecx, r14d
     call tex_rnd
     add eax, r13d
+    cmp al, ACC
+    jne .rect_c
+    mov al, [tex_accent]
+.rect_c:
     mov edx, r15d
     shl edx, 4
     add edx, ebx
@@ -553,6 +732,10 @@ tex_run:
     movzx edx, byte [rsi]
     add eax, edx
     mov dl, [rsi+2]
+    cmp dl, ACC
+    jne .px_c
+    mov dl, [tex_accent]
+.px_c:
     mov [r12+rax], dl
     add rsi, 3
     jmp .op
@@ -649,6 +832,10 @@ tex_run:
     movzx r8d, byte [rsi+2]
     movzx r9d, byte [rsi+3]
     mov dl, [rsi+4]
+    cmp dl, ACC
+    jne .ln_c
+    mov dl, [tex_accent]
+.ln_c:
     add rsi, 5
     mov eax, r8d
     sub eax, r13d                   ; dx

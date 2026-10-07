@@ -25,6 +25,7 @@ section .text
 game_init:
     FRAME 0
     call textures_init
+    call items_init
     call mesh_init
     call world_init
     call render_init
@@ -35,6 +36,24 @@ game_init:
     call palette_set_sky
     call find_spawn
     mov dword [loading], 1
+    mov dword [pl_health], 20
+    mov dword [pl_hunger], 20
+    ; starter kit so the first test session has something to play with
+    mov ecx, B_PLANKS
+    mov edx, 32
+    call inv_add
+    mov ecx, B_GLASS
+    mov edx, 16
+    call inv_add
+    mov ecx, B_TORCHSTONE
+    mov edx, 16
+    call inv_add
+    mov ecx, I_PICK_W
+    mov edx, 1
+    call inv_add
+    mov ecx, I_APPLE
+    mov edx, 5
+    call inv_add
     ENDFRAME
 
 ; -----------------------------------------------------------------------------
@@ -58,12 +77,17 @@ find_spawn:
     cvtsi2ss xmm0, r12d
     addss xmm0, [f_half]
     movss [cam_x], xmm0
-    add eax, 3
+    movss [pl_x], xmm0
+    inc eax
     cvtsi2ss xmm0, eax
+    movss [pl_y], xmm0
+    movss [pl_fall_top], xmm0
+    addss xmm0, [f_eye]
     movss [cam_y], xmm0
     cvtsi2ss xmm0, r13d
     addss xmm0, [f_half]
     movss [cam_z], xmm0
+    movss [pl_z], xmm0
     ENDFRAME
 .next:
     add r12d, 37
@@ -225,16 +249,18 @@ stream_chunks:
     ; loading finishes once the 5x5 area round the player is meshed
     cmp r15d, 21
     jb .out
+    cmp dword [loading], 0
+    je .out
     mov dword [loading], 0
+    call unstick_player
 .out:
     ENDFRAME
 
 ; -----------------------------------------------------------------------------
-; free-fly camera (milestone 2 test controls)
+; mouse_look - yaw / pitch from mouse deltas (and arrow keys)
 ; -----------------------------------------------------------------------------
-fly_camera:
+mouse_look:
     FRAME 0
-    ; mouse look
     cvtsi2ss xmm0, dword [mouse_dx]
     FCONST xmm1, 0.0035
     mulss xmm0, xmm1
@@ -249,8 +275,9 @@ fly_camera:
     FCONST xmm1, -1.55
     maxss xmm2, xmm1
     movss [cam_pitch], xmm2
-    ; keyboard turning too (arrow keys)
-    FCONST xmm3, 2.0
+    cmp byte [ui_open], 0
+    jne .out
+    FCONST xmm3, 2.2
     mulss xmm3, [frame_dt]
     cmp byte [keys+VK_LEFT], 0
     je .nl
@@ -264,77 +291,75 @@ fly_camera:
     addss xmm0, xmm3
     movss [cam_yaw], xmm0
 .nr:
-    ; movement
-    movss xmm0, [cam_yaw]
-    call sincos                     ; xmm0 sin, xmm1 cos
-    FCONST xmm2, 20.0
-    cmp byte [keys+VK_CONTROL], 0
-    je .slow
-    FCONST xmm2, 60.0
-.slow:
-    mulss xmm2, [frame_dt]          ; speed * dt
-    mulss xmm0, xmm2                ; fwd x = sin * s
-    mulss xmm1, xmm2                ; fwd z = cos * s
-    cmp byte [keys+'W'], 0
-    je .nw
-    movss xmm3, [cam_x]
-    addss xmm3, xmm0
-    movss [cam_x], xmm3
-    movss xmm3, [cam_z]
-    addss xmm3, xmm1
-    movss [cam_z], xmm3
-.nw:
-    cmp byte [keys+'S'], 0
-    je .ns
-    movss xmm3, [cam_x]
-    subss xmm3, xmm0
-    movss [cam_x], xmm3
-    movss xmm3, [cam_z]
-    subss xmm3, xmm1
-    movss [cam_z], xmm3
-.ns:
-    ; right = (cos, -sin)
-    cmp byte [keys+'D'], 0
-    je .nd
-    movss xmm3, [cam_x]
-    addss xmm3, xmm1
-    movss [cam_x], xmm3
-    movss xmm3, [cam_z]
-    subss xmm3, xmm0
-    movss [cam_z], xmm3
-.nd:
-    cmp byte [keys+'A'], 0
-    je .na
-    movss xmm3, [cam_x]
-    subss xmm3, xmm1
-    movss [cam_x], xmm3
-    movss xmm3, [cam_z]
-    addss xmm3, xmm0
-    movss [cam_z], xmm3
-.na:
-    cmp byte [keys+VK_SPACE], 0
+    cmp byte [keys+VK_UP], 0
     je .nu
-    movss xmm3, [cam_y]
-    addss xmm3, xmm2
-    movss [cam_y], xmm3
+    movss xmm0, [cam_pitch]
+    addss xmm0, xmm3
+    FCONST xmm1, 1.55
+    minss xmm0, xmm1
+    movss [cam_pitch], xmm0
 .nu:
-    cmp byte [keys+VK_SHIFT], 0
-    je .ndn
-    movss xmm3, [cam_y]
-    subss xmm3, xmm2
-    movss [cam_y], xmm3
-.ndn:
-    ; keep inside the world
-    FCONST xmm1, 1.0
-    FCONST xmm2, 19999.0
-    movss xmm0, [cam_x]
+    cmp byte [keys+VK_DOWN], 0
+    je .out
+    movss xmm0, [cam_pitch]
+    subss xmm0, xmm3
+    FCONST xmm1, -1.55
     maxss xmm0, xmm1
-    minss xmm0, xmm2
-    movss [cam_x], xmm0
-    movss xmm0, [cam_z]
-    maxss xmm0, xmm1
-    minss xmm0, xmm2
-    movss [cam_z], xmm0
+    movss [cam_pitch], xmm0
+.out:
+    ENDFRAME
+
+; -----------------------------------------------------------------------------
+; hotbar_input - 1..9 keys and the mouse wheel
+; -----------------------------------------------------------------------------
+hotbar_input:
+    mov ecx, '1'
+.k:
+    lea rax, [keys_pressed]
+    cmp byte [rax+rcx], 0
+    je .nk
+    lea eax, [ecx-'1']
+    mov [hotbar_sel], eax
+.nk:
+    inc ecx
+    cmp ecx, '9'
+    jbe .k
+    mov eax, [wheel_delta]
+    test eax, eax
+    jz .out
+    mov ecx, [hotbar_sel]
+    js .down
+    dec ecx
+    jns .set
+    mov ecx, 8
+    jmp .set
+.down:
+    inc ecx
+    cmp ecx, 9
+    jb .set
+    xor ecx, ecx
+.set:
+    mov [hotbar_sel], ecx
+.out:
+    ret
+
+; unstick_player - after loading, lift the player out of any block
+unstick_player:
+    FRAME 0
+    mov ebx, 200
+.l:
+    call set_player_box
+    call box_solid
+    test eax, eax
+    jz .out
+    movss xmm0, [pl_y]
+    addss xmm0, [f_one]
+    movss [pl_y], xmm0
+    dec ebx
+    jnz .l
+.out:
+    movss xmm0, [pl_y]
+    movss [pl_fall_top], xmm0
     ENDFRAME
 
 ; -----------------------------------------------------------------------------
@@ -368,15 +393,29 @@ game_frame:
     je .nof3
     xor dword [show_debug], 1
 .nof3:
-    call fly_camera
+    cmp byte [keys_pressed+0x73], 0     ; F4: debug fly mode
+    je .nof4
+    xor dword [pl_fly], 1
+.nof4:
     call stream_chunks
-
+    cmp dword [loading], 0
+    jne .skip_sim
+    call mouse_look
+    call hotbar_input
+    movss xmm0, [frame_dt]
+    call player_physics
+    movss xmm0, [frame_dt]
+    call player_interact
+.skip_sim:
     call render_setup_camera
     call render_sky
     cmp dword [loading], 0
     jne .loading_screen
     call render_world
+    call draw_crack_overlay
+    call draw_target_outline
     call draw_crosshair
+    call draw_hud
     cmp dword [show_debug], 0
     je .out
     call draw_debug
@@ -478,8 +517,31 @@ draw_debug:
     call draw_text_shadow
     ENDFRAME
 
-; placeholders until save.asm exists
+; placeholders for later milestones
 save_chunk:
     ret
 load_or_gen_chunk:
     jmp gen_chunk
+player_hurt:
+    sub [pl_health], ecx
+    jns .ok
+    mov dword [pl_health], 0
+.ok:
+    ret
+player_eat:
+    ret
+player_attack:
+    xor eax, eax
+    ret
+mob_in_cell:
+    xor eax, eax
+    ret
+sfx_break:
+sfx_place:
+ui_open_inventory:
+    ret
+section .bss
+ui_open     resb 4
+pl_health   resd 1
+pl_hunger   resd 1
+section .text

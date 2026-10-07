@@ -40,4 +40,7 @@ start:
 %include "world.asm"
 %include "mesh.asm"
 %include "render.asm"
+%include "items.asm"
+%include "player.asm"
+%include "hud.asm"
 %include "game.asm"

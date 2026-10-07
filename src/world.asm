@@ -340,10 +340,10 @@ terrain_column:
     call fbm2
     movss xmm13, xmm0               ; m
 
-    ; h = 52 + c*48 + hills*9
-    FCONST xmm0, 48.0
+    ; h = 57 + c*40 + hills*9
+    FCONST xmm0, 40.0
     mulss xmm0, xmm8
-    FCONST xmm1, 52.0
+    FCONST xmm1, 57.0
     addss xmm0, xmm1
     FCONST xmm1, 9.0
     mulss xmm1, xmm12
@@ -379,8 +379,8 @@ terrain_column:
     addss xmm14, xmm0
     movss [LOCAL(8)], xmm15         ; mf
 
-    ; weird factor wf = clamp((w - 0.28) * 7, 0, 1) (only where not mountain)
-    FCONST xmm1, 0.28
+    ; weird factor wf = clamp((w - 0.14) * 7, 0, 1) (only where not mountain)
+    FCONST xmm1, 0.14
     movss xmm0, xmm11
     subss xmm0, xmm1
     FCONST xmm1, 7.0
@@ -478,7 +478,7 @@ terrain_column:
     mov r13d, BIO_CANYON
     jmp .biome_done
 .not_weird:
-    cmp r12d, SEA_LEVEL + 2
+    cmp r12d, SEA_LEVEL + 1
     jg .not_beach
     mov r13d, BIO_BEACH
     FCONST xmm1, -0.2
