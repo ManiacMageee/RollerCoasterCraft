@@ -33,6 +33,7 @@ start:
     call platform_present
     jmp .loop
 .exit:
+    call game_shutdown
     xor ecx, ecx
     call ExitProcess
 
@@ -54,6 +55,8 @@ start:
 %include "mobs.asm"
 %include "audio.asm"
 %include "music.asm"
+%include "save.asm"
+%include "title.asm"
 %ifdef AUDIO_TEST
 %include "audiotest.asm"
 %endif

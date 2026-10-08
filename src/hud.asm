@@ -15,6 +15,7 @@ aff_vx      resd 1
 aff_vy      resd 1
 name_timer  resd 1
 last_sel    resd 1
+sprite_flat resd 1                  ; non-zero: draw every texel in this colour
 
 section .text
 
@@ -36,6 +37,10 @@ draw_sprite:
     test eax, eax
     jz .next
     mov r15d, eax
+    cmp dword [sprite_flat], 0
+    je .colour
+    mov r15d, [sprite_flat]
+.colour:
     ; block top-left
     mov ecx, ebx
     and ecx, 15
@@ -406,7 +411,7 @@ draw_hud:
     mov r8d, HOTBAR_Y - 19
     mov r9d, 1
     mov [LOCAL(8)], ebx
-    call draw_sprite
+    call draw_sprite_shadow
     mov ebx, [LOCAL(8)]
     inc ebx
     cmp ebx, 10
@@ -432,7 +437,7 @@ draw_hud:
     mov r8d, HOTBAR_Y - 19
     mov r9d, 1
     mov [LOCAL(8)], ebx
-    call draw_sprite
+    call draw_sprite_shadow
     mov ebx, [LOCAL(8)]
     inc ebx
     cmp ebx, 10
@@ -469,4 +474,23 @@ draw_hud:
     mov r9d, R_GREY+15
     call draw_text_shadow
 .out:
+    ENDFRAME
+
+; draw_sprite_shadow - draw_sprite with a dark 1 pixel drop shadow
+draw_sprite_shadow:
+    FRAME 32
+    mov [LOCAL(8)], ecx
+    mov [LOCAL(16)], edx
+    mov [LOCAL(24)], r8d
+    mov [LOCAL(32)], r9d
+    mov dword [sprite_flat], R_GREY+1
+    inc edx
+    inc r8d
+    call draw_sprite
+    mov dword [sprite_flat], 0
+    mov ecx, [LOCAL(8)]
+    mov edx, [LOCAL(16)]
+    mov r8d, [LOCAL(24)]
+    mov r9d, [LOCAL(32)]
+    call draw_sprite
     ENDFRAME

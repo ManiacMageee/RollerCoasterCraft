@@ -29,41 +29,23 @@ game_init:
     call mesh_init
     call world_init
     call render_init
+    call sky_init
+    call mobs_init
+    mov dword [music_enabled], 1
+    mov dword [music_mode], MUS_TITLE
     call audio_init
-    mov dword [world_seed], 12345
-    mov dword [show_debug], 1
+    mov dword [show_debug], 0
+    mov dword [time_of_day], __float32__(0.1)
+    mov dword [daylight], 15
     mov ecx, 0x5A8CE6
     mov edx, 0xB4D2FA
     call palette_set_sky
-    call sky_init
-    call mobs_init
-    call find_spawn
-    mov eax, [pl_x]
-    mov [spawn_x], eax
-    mov eax, [pl_y]
-    mov [spawn_y], eax
-    mov eax, [pl_z]
-    mov [spawn_z], eax
-    mov dword [loading], 1
-    call survival_reset
-    mov dword [time_of_day], __float32__(0.02)
-    mov dword [music_enabled], 1
-    ; starter kit so the first test session has something to play with
-    mov ecx, B_PLANKS
-    mov edx, 32
-    call inv_add
-    mov ecx, B_GLASS
-    mov edx, 16
-    call inv_add
-    mov ecx, B_TORCHSTONE
-    mov edx, 16
-    call inv_add
-    mov ecx, I_PICK_W
-    mov edx, 1
-    call inv_add
-    mov ecx, I_APPLE
-    mov edx, 5
-    call inv_add
+    lea rcx, [save_dir]
+    xor edx, edx
+    call CreateDirectoryA
+    call save_exists
+    mov [has_save], eax
+    mov dword [ui_open], UI_TITLE
     ENDFRAME
 
 ; -----------------------------------------------------------------------------
@@ -417,6 +399,7 @@ game_frame:
     cmp byte [keys_pressed+VK_ESCAPE], 0
     je .noesc
     mov dword [ui_open], UI_PAUSE
+    mov byte [keys_pressed+VK_ESCAPE], 0    ; don't let the menu see it too
     call platform_release_mouse
     jmp .ui_input_done
 .noesc:
@@ -603,14 +586,6 @@ draw_debug:
     call draw_text_shadow
     ENDFRAME
 
-; placeholders for later milestones
-save_chunk:
-    ret
-load_or_gen_chunk:
-    jmp gen_chunk
-quit_to_title:
-title_frame:
-    ret
 section .bss
 ui_open     resd 1
 music_enabled resd 1
@@ -638,6 +613,8 @@ world_tick:
     call mobs_update
     movss xmm0, [frame_dt]
     call effects_update
+    movss xmm0, [frame_dt]
+    call autosave_tick
     ENDFRAME
 
 section .bss
