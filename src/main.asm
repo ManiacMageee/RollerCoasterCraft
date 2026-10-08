@@ -31,6 +31,7 @@ start:
     call platform_frame_dt
     call game_frame                 ; xmm0 = dt
     call platform_present
+    call platform_limit_fps
     jmp .loop
 .exit:
     call game_shutdown

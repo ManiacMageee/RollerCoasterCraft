@@ -23,6 +23,7 @@ seed_len    resd 1
 seed_focus  resd 1
 has_save    resd 1
 session_active resd 1
+spawn_fix   resd 1                  ; snap a fresh spawn onto the real surface
 title_time  resd 1
 one_char    resb 2
 
@@ -397,6 +398,7 @@ title_new_world:
     mov eax, [pl_z]
     mov [spawn_z], eax
     call survival_reset
+    mov dword [spawn_fix], 1
     mov dword [time_of_day], __float32__(0.02)
     mov dword [day_count], 0
     mov dword [cam_pitch], 0

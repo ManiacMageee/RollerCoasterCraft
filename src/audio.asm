@@ -168,12 +168,12 @@ audio_init_device:
     add rdx, rax
     mov [rsi], rdx
     mov dword [rsi+8], AUDIO_BUF_SAMPLES*2
-    mov dword [rsi+24], WHDR_DONE   ; so the thread fills it straight away
+    mov dword [rsi+24], 0           ; must be 0 before preparing
     mov rcx, [hwaveout]
     mov rdx, rsi
     mov r8d, 48
     call waveOutPrepareHeader
-    or dword [rsi+24], WHDR_DONE
+    or dword [rsi+24], WHDR_DONE    ; so the thread fills it straight away
     inc ebx
     cmp ebx, AUDIO_BUFS
     jb .h

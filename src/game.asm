@@ -336,8 +336,23 @@ hotbar_input:
     ret
 
 ; unstick_player - after loading, lift the player out of any block
+; (a brand new world also snaps the spawn to the top surface, since caves
+;  can hollow out the ground the terrain function predicted)
 unstick_player:
     FRAME 0
+    cmp dword [spawn_fix], 0
+    je .nofix
+    mov dword [spawn_fix], 0
+    cvttss2si ecx, [pl_x]
+    cvttss2si edx, [pl_z]
+    call surface_at
+    test eax, eax
+    js .nofix
+    inc eax
+    cvtsi2ss xmm0, eax
+    movss [pl_y], xmm0
+    movss [spawn_y], xmm0
+.nofix:
     mov ebx, 200
 .l:
     call set_player_box
@@ -456,6 +471,7 @@ game_frame:
     call render_world
     call render_mobs
     call render_effects
+    call render_fog
     cmp dword [ui_open], UI_NONE
     jne .no_overlay
     call draw_crack_overlay

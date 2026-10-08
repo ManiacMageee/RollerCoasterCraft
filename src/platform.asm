@@ -149,6 +149,25 @@ platform_frame_dt:
     ENDFRAME
 
 ; -----------------------------------------------------------------------------
+; platform_limit_fps - sleep so frames are at least ~8.3 ms apart (120 fps)
+; -----------------------------------------------------------------------------
+platform_limit_fps:
+    FRAME 16
+.wait:
+    lea rcx, [LOCAL(8)]
+    call QueryPerformanceCounter
+    mov rax, [LOCAL(8)]
+    sub rax, [qpc_last]             ; time since this frame started
+    imul rax, rax, 120
+    cmp rax, [qpc_freq]
+    jge .out
+    mov ecx, 1
+    call Sleep
+    jmp .wait
+.out:
+    ENDFRAME
+
+; -----------------------------------------------------------------------------
 ; platform_seconds - xmm0 (double) = seconds since boot, high resolution
 ; -----------------------------------------------------------------------------
 platform_seconds:

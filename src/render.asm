@@ -294,6 +294,8 @@ render_sky:
     neg eax
     add eax, 255
 .fill:
+    lea rdi, [row_sky]
+    mov [rdi+r13], al
     mov rdi, rbx
     mov ecx, SCREEN_W/8
     movzx eax, al
@@ -1062,4 +1064,77 @@ draw_crosshair:
     mov r9d, 15
     mov qword [ARG(5)], R_GREY+15
     call fill_rect
+    ENDFRAME
+
+; -----------------------------------------------------------------------------
+; render_fog - ordered-dither distance fog towards the horizon colour.
+; For each pixel the 4x4 Bayer value picks a depth threshold; geometry
+; farther than its threshold becomes sky.  One compare per pixel.
+; -----------------------------------------------------------------------------
+section .data
+bayer4      db 0,8,2,10, 12,4,14,6, 3,11,1,9, 15,7,13,5
+section .bss
+alignb 16
+fog_thresh  resd 16                 ; 1/z threshold per Bayer value
+row_sky     resb SCREEN_H           ; sky colour of every screen row
+section .text
+render_fog:
+    FRAME 0
+    ; fog from 65% to 100% of the view distance
+    mov eax, [render_dist]
+    shl eax, 4
+    cvtsi2ss xmm0, eax              ; end
+    FCONST xmm1, 0.65
+    movss xmm2, xmm0
+    mulss xmm2, xmm1                ; start
+    subss xmm0, xmm2                ; range
+    xor ecx, ecx
+    lea rdi, [fog_thresh]
+.t:
+    cvtsi2ss xmm3, ecx
+    addss xmm3, [f_half]
+    FCONST xmm4, 0.0625
+    mulss xmm3, xmm4
+    mulss xmm3, xmm0
+    addss xmm3, xmm2                ; distance for this level
+    movss xmm4, [f_one]
+    divss xmm4, xmm3
+    movss [rdi+rcx*4], xmm4
+    inc ecx
+    cmp ecx, 16
+    jb .t
+    ; pass
+    lea rsi, [zbuffer]
+    lea rdi, [framebuffer]
+    lea r8, [bayer4]
+    lea r9, [fog_thresh]
+    xor edx, edx                    ; y
+.y:
+    lea rax, [row_sky]
+    mov r11b, [rax+rdx]             ; fog = this row's sky colour
+    mov r10d, edx
+    and r10d, 3
+    shl r10d, 2                     ; bayer row
+    xor ecx, ecx                    ; x
+.x:
+    movss xmm0, [rsi]
+    xorps xmm1, xmm1
+    comiss xmm0, xmm1
+    jbe .n                          ; sky / nothing drawn
+    mov eax, ecx
+    and eax, 3
+    add eax, r10d
+    movzx eax, byte [r8+rax]
+    comiss xmm0, [r9+rax*4]
+    jae .n
+    mov [rdi], r11b
+.n:
+    add rsi, 4
+    inc rdi
+    inc ecx
+    cmp ecx, SCREEN_W
+    jb .x
+    inc edx
+    cmp edx, SCREEN_H
+    jb .y
     ENDFRAME
