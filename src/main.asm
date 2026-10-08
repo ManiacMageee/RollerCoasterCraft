@@ -44,4 +44,7 @@ start:
 %include "player.asm"
 %include "hud.asm"
 %include "ui.asm"
+%include "sky.asm"
+%include "survival.asm"
+%include "mobs.asm"
 %include "game.asm"

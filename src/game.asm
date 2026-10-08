@@ -34,10 +34,19 @@ game_init:
     mov ecx, 0x5A8CE6
     mov edx, 0xB4D2FA
     call palette_set_sky
+    call sky_init
+    call mobs_init
     call find_spawn
+    mov eax, [pl_x]
+    mov [spawn_x], eax
+    mov eax, [pl_y]
+    mov [spawn_y], eax
+    mov eax, [pl_z]
+    mov [spawn_z], eax
     mov dword [loading], 1
-    mov dword [pl_health], 20
-    mov dword [pl_hunger], 20
+    call survival_reset
+    mov dword [time_of_day], __float32__(0.02)
+    mov dword [music_enabled], 1
     ; starter kit so the first test session has something to play with
     mov ecx, B_PLANKS
     mov edx, 32
@@ -417,6 +426,21 @@ game_frame:
     mov byte [keys_pressed+'E'], 0
     jmp .ui_input_done
 .noe:
+    cmp byte [keys_pressed+0x76], 0     ; F7: debug, skip a quarter day
+    je .nof7
+    movss xmm0, [time_of_day]
+    FCONST xmm1, 0.25
+    addss xmm0, xmm1
+    comiss xmm0, [f_one]
+    jb .t7
+    subss xmm0, [f_one]
+.t7:
+    movss [time_of_day], xmm0
+.nof7:
+    cmp byte [keys_pressed+0x77], 0     ; F8: debug, spawn the next mob type
+    je .nof8
+    call debug_spawn
+.nof8:
     cmp byte [keys_pressed+0x73], 0     ; F4: debug fly mode
     je .ui_input_done
     xor dword [pl_fly], 1
@@ -442,6 +466,7 @@ game_frame:
 .skip_sim:
     call render_setup_camera
     call render_sky
+    call render_celestial
     cmp dword [loading], 0
     jne .loading_screen
     call render_world
@@ -582,35 +607,81 @@ save_chunk:
     ret
 load_or_gen_chunk:
     jmp gen_chunk
-player_hurt:
-    sub [pl_health], ecx
-    jns .ok
-    mov dword [pl_health], 0
-.ok:
-    ret
-player_eat:
-    ret
-player_attack:
-    xor eax, eax
-    ret
-mob_in_cell:
-    xor eax, eax
-    ret
 sfx_break:
 sfx_place:
 sfx_click:
+sfx_hit:
+sfx_fuse:
+sfx_explode:
+sfx_throw:
+sfx_hurt:
+sfx_eat:
 quit_to_title:
-player_respawn:
-world_tick:
-render_mobs:
-render_effects:
-draw_hurt_flash:
 title_frame:
     ret
 section .bss
 ui_open     resd 1
-pl_health   resd 1
-pl_hunger   resd 1
 music_enabled resd 1
 day_count   resd 1
 section .text
+
+; -----------------------------------------------------------------------------
+; world_tick - everything that advances with time (not while paused)
+; -----------------------------------------------------------------------------
+world_tick:
+    FRAME 0
+    movss xmm0, [frame_dt]
+    call daynight_update
+    movss xmm0, [frame_dt]
+    call survival_update
+    movss xmm0, [frame_dt]
+    call mobs_spawn_tick
+    movss xmm0, [frame_dt]
+    call mobs_update
+    movss xmm0, [frame_dt]
+    call effects_update
+    ENDFRAME
+
+section .bss
+debug_mob_type resd 1
+section .text
+; debug_spawn - put the next mob type 4 blocks in front of the player
+debug_spawn:
+    FRAME 32
+    mov eax, [debug_mob_type]
+    inc eax
+    cmp eax, NUM_MOB_TYPES
+    jb .t
+    mov eax, 1
+.t:
+    mov [debug_mob_type], eax
+    ; fan the types out across the view, 7 blocks away
+    sub eax, 4
+    cvtsi2ss xmm0, eax
+    FCONST xmm1, 0.28
+    mulss xmm0, xmm1
+    addss xmm0, [cam_yaw]
+    call sincos
+    FCONST xmm2, 7.0
+    mulss xmm0, xmm2
+    mulss xmm1, xmm2
+    addss xmm0, [pl_x]
+    addss xmm1, [pl_z]
+    movss xmm2, xmm1
+    movss xmm1, [pl_y]
+    addss xmm1, [f_one]
+    mov ecx, [debug_mob_type]
+    call mob_spawn
+    test rax, rax
+    jz .out
+    mov rbx, rax
+    ; face the player
+    movss xmm0, [cam_yaw]
+    FCONST xmm1, 3.14159
+    addss xmm0, xmm1
+    movss [rbx+M_YAW], xmm0
+    mov dword [rbx+M_STATE], MS_IDLE
+    FCONST xmm0, 8.0
+    movss [rbx+M_TIMER], xmm0
+.out:
+    ENDFRAME

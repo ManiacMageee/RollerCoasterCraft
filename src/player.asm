@@ -33,6 +33,9 @@ pl_on_ground resd 1
 pl_in_water resd 1
 pl_head_water resd 1
 pl_fly      resd 1
+phys_ptr    resq 1                  ; -> x, y, z floats of the moving body
+phys_hw     resd 1                  ; half width
+phys_ht     resd 1                  ; height
 box_min     resd 3
 box_max     resd 3
 ; raycast results
@@ -122,22 +125,36 @@ box_solid:
     mov eax, 1
     ENDFRAME
 
+; use_player_body - point the generic physics at the player
+use_player_body:
+    lea rax, [pl_x]
+    mov [phys_ptr], rax
+    mov eax, [f_hw]
+    mov [phys_hw], eax
+    mov eax, [f_ht]
+    mov [phys_ht], eax
+    ret
+
 ; set_player_box - box from the player position
 set_player_box:
-    movss xmm0, [pl_x]
+    call use_player_body
+; set_body_box - box from the current physics body
+set_body_box:
+    mov rax, [phys_ptr]
+    movss xmm0, [rax]
     movss xmm1, xmm0
-    subss xmm0, [f_hw]
-    addss xmm1, [f_hw]
+    subss xmm0, [phys_hw]
+    addss xmm1, [phys_hw]
     movss [box_min], xmm0
     movss [box_max], xmm1
-    movss xmm0, [pl_y]
+    movss xmm0, [rax+4]
     movss [box_min+4], xmm0
-    addss xmm0, [f_ht]
+    addss xmm0, [phys_ht]
     movss [box_max+4], xmm0
-    movss xmm0, [pl_z]
+    movss xmm0, [rax+8]
     movss xmm1, xmm0
-    subss xmm0, [f_hw]
-    addss xmm1, [f_hw]
+    subss xmm0, [phys_hw]
+    addss xmm1, [phys_hw]
     movss [box_min+8], xmm0
     movss [box_max+8], xmm1
     ret
@@ -150,17 +167,17 @@ move_axis:
     FRAME 32
     mov r12d, ecx
     movss [LOCAL(8)], xmm0
-    lea rbx, [pl_x]
+    mov rbx, [phys_ptr]
     movss xmm1, [rbx+r12*4]
     movss [LOCAL(16)], xmm1         ; old position
     addss xmm1, xmm0
     movss [rbx+r12*4], xmm1
-    call set_player_box
+    call set_body_box
     call box_solid
     test eax, eax
     jz .free
     ; blocked: snap against the block face
-    lea rbx, [pl_x]
+    mov rbx, [phys_ptr]
     movss xmm0, [LOCAL(8)]
     xorps xmm1, xmm1
     comiss xmm0, xmm1
@@ -169,10 +186,10 @@ move_axis:
     lea rax, [box_max]
     movss xmm2, [rax+r12*4]
     roundss xmm2, xmm2, 1
-    movss xmm3, [f_hw]
+    movss xmm3, [phys_hw]
     cmp r12d, 1
     jne .p1
-    movss xmm3, [f_ht]
+    movss xmm3, [phys_ht]
 .p1:
     subss xmm2, xmm3
     subss xmm2, [f_skin]
@@ -185,7 +202,7 @@ move_axis:
     addss xmm2, [f_one]
     cmp r12d, 1
     je .n1
-    addss xmm2, [f_hw]
+    addss xmm2, [phys_hw]
 .n1:
     addss xmm2, [f_skin]
 .set:
@@ -407,6 +424,7 @@ player_physics:
     movss xmm10, xmm15
     divss xmm10, xmm9               ; step dt
     mov dword [pl_on_ground], 0
+    call use_player_body
     cmp dword [pl_fly], 0
     jne .flystep
 .step:
@@ -715,18 +733,20 @@ break_time:
     jb .hv
     mov eax, 1
 .hv:
+    mov ebx, eax                    ; harvest flag (FCONST clobbers eax)
     cvtsi2ss xmm0, r12d
     FCONST xmm1, 0.1
     mulss xmm0, xmm1
     cvtsi2ss xmm1, r15d
     divss xmm0, xmm1
-    test eax, eax
+    test ebx, ebx
     jnz .ok
     FCONST xmm1, 3.3
     mulss xmm0, xmm1
 .ok:
     FCONST xmm1, 0.05
     maxss xmm0, xmm1
+    mov eax, ebx
     ENDFRAME
 .never:
     xorps xmm0, xmm0
@@ -810,6 +830,7 @@ player_interact:
     call world_set_block
     mov ecx, r12d
     call sfx_break
+    call break_particles
     call damage_selected_tool
     test r13d, r13d
     jz .mine_done
@@ -1381,4 +1402,23 @@ draw_line_2d:
 .noys:
     jmp .l
 .out:
+    ENDFRAME
+
+; break_particles(r12d = block) - debris in the block's colour at mine_x/y/z
+break_particles:
+    FRAME 0
+    lea rax, [block_props]
+    movzx eax, byte [rax+r12*8+2]   ; side tile
+    shl eax, 8
+    lea rcx, [tex_atlas]
+    movzx edx, byte [rcx+rax+0x88]  ; a texel from the middle
+    cvtsi2ss xmm0, dword [mine_x]
+    addss xmm0, [f_half]
+    cvtsi2ss xmm1, dword [mine_y]
+    addss xmm1, [f_half]
+    cvtsi2ss xmm2, dword [mine_z]
+    addss xmm2, [f_half]
+    FCONST xmm3, 4.0
+    mov ecx, 14
+    call particles_burst
     ENDFRAME
