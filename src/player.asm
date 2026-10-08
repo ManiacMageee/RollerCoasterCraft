@@ -1447,6 +1447,7 @@ alignb 4
 gun_cool    resd 1                  ; time until the next shot
 gun_kick    resd 1                  ; recoil animation 1 -> 0
 muzzle_flash resd 1
+gun_recoil  resd 1                  ; pitch climbed by recoil, recovered over time
 section .text
 
 ; gun_timers(xmm0 = dt)
@@ -1468,6 +1469,18 @@ gun_timers:
     subss xmm3, xmm1
     maxss xmm3, xmm2
     movss [gun_kick], xmm3
+    ; drift the view back down after recoil
+    movss xmm1, xmm0
+    mov eax, __float32__(0.12)
+    movd xmm3, eax
+    mulss xmm1, xmm3
+    minss xmm1, [gun_recoil]
+    movss xmm3, [gun_recoil]
+    subss xmm3, xmm1
+    movss [gun_recoil], xmm3
+    movss xmm3, [cam_pitch]
+    subss xmm3, xmm1
+    movss [cam_pitch], xmm3
     ret
 
 ; gun_fire - one bullet if the rifle has cooled down (~650 rounds/min)
@@ -1518,9 +1531,12 @@ gun_fire:
     mov edx, R_ORANGE+13
     call particles_burst
 .recoil:
-    ; muzzle climb
-    movss xmm0, [cam_pitch]
+    ; muzzle climb (recovered in gun_timers)
     FCONST xmm1, 0.012
+    movss xmm0, [gun_recoil]
+    addss xmm0, xmm1
+    movss [gun_recoil], xmm0
+    movss xmm0, [cam_pitch]
     addss xmm0, xmm1
     FCONST xmm1, 1.55
     minss xmm0, xmm1
