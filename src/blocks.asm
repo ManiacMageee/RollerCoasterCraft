@@ -140,6 +140,7 @@ T_I_PICK        equ 104         ; +tier (0 wood, 1 stone, 2 iron)
 T_I_AXE         equ 107
 T_I_SHOVEL      equ 110
 T_I_SWORD       equ 113
+T_I_RIFLE       equ 116
 T_HEART_FULL    equ 120
 T_HEART_HALF    equ 121
 T_HEART_EMPTY   equ 122

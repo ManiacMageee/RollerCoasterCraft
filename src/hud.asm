@@ -231,7 +231,7 @@ draw_item_icon:
     lea edx, [r13d-16]
     lea r8d, [r14d-16]
     mov r9d, 2
-    call draw_sprite
+    call draw_sprite_shadow
     jmp .out
 .block:
     lea rbx, [block_props]

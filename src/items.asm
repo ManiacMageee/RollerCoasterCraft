@@ -24,6 +24,7 @@ I_SHOVEL_I      equ 88
 I_SWORD_W       equ 89
 I_SWORD_S       equ 90
 I_SWORD_I       equ 91
+I_RIFLE         equ 92
 NUM_ITEMS       equ 96
 
 IK_NONE         equ 0
@@ -31,6 +32,7 @@ IK_BLOCK        equ 1
 IK_TOOL         equ 2
 IK_FOOD         equ 3
 IK_MATERIAL     equ 4
+IK_GUN          equ 5
 
 TOOL_SWORD      equ 4
 
@@ -63,7 +65,8 @@ item_props:
     db IK_TOOL, TOOL_SWORD, 1, 1, T_I_SWORD+0, 0, 4, 15   ; 89
     db IK_TOOL, TOOL_SWORD, 2, 1, T_I_SWORD+1, 0, 5, 33
     db IK_TOOL, TOOL_SWORD, 3, 1, T_I_SWORD+2, 0, 7, 63
-    times (NUM_ITEMS-92)*ITEM_STRIDE db 0
+    db IK_GUN, 0, 0, 1, T_I_RIFLE, 0, 2, 0                ; 92 rifle
+    times (NUM_ITEMS-93)*ITEM_STRIDE db 0
 
 item_names:
     dq 0, in_stone, in_dirt, in_grass, in_sand, in_water, in_log, in_leaves
@@ -75,8 +78,8 @@ item_names:
     dq in_stick, in_coal, in_iron, in_apple, in_bacon, in_steak, in_mush
     times 80-71 dq 0
     dq in_pick_w, in_pick_s, in_pick_i, in_axe_w, in_axe_s, in_axe_i
-    dq in_sh_w, in_sh_s, in_sh_i, in_sw_w, in_sw_s, in_sw_i
-    times NUM_ITEMS-92 dq 0
+    dq in_sh_w, in_sh_s, in_sh_i, in_sw_w, in_sw_s, in_sw_i, in_rifle
+    times NUM_ITEMS-93 dq 0
 in_stone    db "Stone",0
 in_dirt     db "Dirt",0
 in_grass    db "Grass",0
@@ -125,6 +128,7 @@ in_sh_i     db "Iron Shovel",0
 in_sw_w     db "Wooden Sword",0
 in_sw_s     db "Stone Sword",0
 in_sw_i     db "Iron Sword",0
+in_rifle    db "Automatic Rifle",0
 
 section .bss
 inv_item    resb INV_SLOTS

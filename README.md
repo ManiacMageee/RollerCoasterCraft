@@ -23,6 +23,9 @@ files).
 - NES-style chiptune synthesiser playing Mozart, Vivaldi, Chopin and
   Debussy, plus synthesised sound effects
 - Title screen with world seeds, plus saving and loading
+- Minecraft-style held items in the lower right (blocks, tools, an arm when
+  your hand is empty) that swing as you mine, a third-person view (F5),
+  and a command line with `/give rifle` for a fully automatic rifle
 
 ## Playing it (Windows 10/11, 64-bit)
 
@@ -49,7 +52,22 @@ files).
 | E | Inventory and 2x2 crafting |
 | Esc | Pause menu (view distance, music, save & quit) |
 | Arrow keys | Look around without the mouse |
+| F5 | Toggle third-person view |
+| T or / | Open the command line (Enter runs, Esc cancels) |
 | F3 | Debug info (FPS, position, biome) |
+
+### Commands
+
+Press **T** (or **/**) and type:
+
+| Command | Effect |
+|---|---|
+| `/give rifle` | An automatic rifle: hold left click to fire (also `/rifle`, `/gun`) |
+| `/kit` | Planks, glass, lanterns and a stone pickaxe |
+| `/time day`, `/time night` | Set the time |
+| `/heal` | Full health and food |
+| `/fly` | Toggle flying |
+| `/help` | List the commands |
 
 Debug and cheat keys for testing: **F4** toggles flying, **F7** skips a
 quarter of a day, and **F8** spawns a creature in front of you.

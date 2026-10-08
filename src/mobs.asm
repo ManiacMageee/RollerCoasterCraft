@@ -74,7 +74,7 @@ mob_hostile db 0,    0,     0,       0,     1,      1,      1
 mob_dmg     db 0,    0,     0,       0,     3,      2,      0
 mob_drop    db 0,    0,     I_BACON, I_STEAK, I_COAL, I_STICK, I_MUSH
 mob_dropn   db 0,    0,     2,       3,     2,      2,      2
-mob_models  dq 0, mdl_snail, mdl_bloopig, mdl_yak, mdl_gloomer, mdl_rattler, mdl_boom
+mob_models  dq 0, mdl_snail, mdl_bloopig, mdl_yak, mdl_gloomer, mdl_rattler, mdl_boom, mdl_player
 
 ; model boxes: centre x,y,z  size x,y,z (1/16 block), anim,
 ;              tiles top, bottom, side, front, back
@@ -1366,14 +1366,23 @@ render_effects:
 ; render_mobs - draw every mob as textured boxes
 ; -----------------------------------------------------------------------------
 render_mobs:
-    FRAME 256
-    SAVE_XMM 256
+    FRAME 0
     lea r12, [mobs]
     mov r13d, MAX_MOBS
 .mob:
-    mov eax, [r12+M_TYPE]
-    test eax, eax
-    jz .next
+    cmp dword [r12+M_TYPE], 0
+    je .next
+    call render_one_mob
+.next:
+    add r12, MOB_BYTES
+    dec r13d
+    jnz .mob
+    ENDFRAME
+
+; render_one_mob(r12 = mob record) - also used for the third-person player
+render_one_mob:
+    FRAME 256
+    SAVE_XMM 256
     ; feet relative to camera
     movss xmm0, [r12+M_X]
     subss xmm0, [cam_x]
@@ -1392,7 +1401,7 @@ render_mobs:
     cvtsi2ss xmm4, eax
     mulss xmm4, xmm4
     comiss xmm3, xmm4
-    ja .next
+    ja .out
     movss [mb_base], xmm0
     movss [mb_base+4], xmm1
     movss [mb_base+8], xmm2
@@ -1409,7 +1418,7 @@ render_mobs:
     shufps xmm0, xmm0, 0xAA
     FCONST xmm1, -3.0
     comiss xmm0, xmm1
-    jb .next
+    jb .out
     ; rotation axes
     movss xmm0, [r12+M_YAW]
     call sincos                     ; xmm0 sin, xmm1 cos
@@ -1464,10 +1473,7 @@ render_mobs:
     add rsi, 12
     dec r14d
     jnz .box
-.next:
-    add r12, MOB_BYTES
-    dec r13d
-    jnz .mob
+.out:
     RESTORE_XMM 256
     ENDFRAME
 
@@ -1559,6 +1565,13 @@ draw_mob_box:
     shufps xmm5, xmm5, 0
     mulps xmm5, [mb_rz]
     movaps [mb_Az], xmm5
+    call draw_box_faces
+    ENDFRAME
+
+; draw_box_faces(rsi = box record for the tiles) - the six faces of the box
+; mb_P (corner, camera-relative world axes) + mb_Ax / mb_Ay / mb_Az
+draw_box_faces:
+    FRAME 0
     mov eax, [mb_light]
     mov [wq_light], eax
     mov dword [wq_flags], 1
@@ -1635,20 +1648,31 @@ draw_mob_box:
     ENDFRAME
 
 ; -----------------------------------------------------------------------------
-; player_attack - hit the mob under the crosshair. eax = 1 if one was hit
+; player_attack - melee hit on the mob under the crosshair (eax = 1 if hit)
+; shoot_mobs(xmm0 = range) - a rifle bullet along the view ray
 ; -----------------------------------------------------------------------------
 player_attack:
+    FCONST xmm0, 3.6
+    cmp dword [tgt_valid], 0
+    je .go
+    minss xmm0, [tgt_dist]          ; can't hit through a block
+.go:
+    xor ecx, ecx
+    jmp attack_core
+shoot_mobs:
+    mov ecx, 6                      ; bullet damage
+    jmp attack_core
+
+; attack_core(xmm0 = range, ecx = fixed damage, 0 = melee with held item)
+attack_core:
     FRAME 256
     SAVE_XMM 256
+    mov [LOCAL(8)], ecx
+    movss xmm9, xmm0                ; best t
     call look_vector
     movss xmm6, xmm0
     movss xmm7, xmm1
     movss xmm8, xmm2
-    FCONST xmm9, 3.6                ; best t (reach)
-    cmp dword [tgt_valid], 0
-    je .noblock
-    minss xmm9, [tgt_dist]
-.noblock:
     xor r15, r15                    ; best mob
     lea r12, [mobs]
     mov r13d, MAX_MOBS
@@ -1703,16 +1727,23 @@ player_attack:
     jz .out
     ; ---- damage the mob
     mov [mb_cur], r15
+    cmp dword [LOCAL(8)], 0
+    jne .bullet
     movss xmm0, [r15+M_HURT]
     FCONST xmm1, 0.25
     comiss xmm0, xmm1
-    ja .done                        ; still invulnerable
+    ja .done                        ; still invulnerable to melee
     FCONST xmm0, 0.45
     movss [r15+M_HURT], xmm0
     FCONST xmm0, 0.3
     movss [swing_timer], xmm0
-    ; knockback along the look direction
-    FCONST xmm0, 6.0
+    FCONST xmm0, 6.0                ; knockback along the look direction
+    jmp .knock
+.bullet:
+    FCONST xmm0, 0.15
+    movss [r15+M_HURT], xmm0
+    FCONST xmm0, 2.5
+.knock:
     movss xmm1, xmm6
     mulss xmm1, xmm0
     movss [r15+M_VX], xmm1
@@ -1734,6 +1765,9 @@ player_attack:
     mov dword [r15+M_VZ], 0
     jmp .done
 .dmg:
+    mov ecx, [LOCAL(8)]
+    test ecx, ecx
+    jnz .d2                         ; bullets: fixed damage, no tool wear
     call selected_item
     lea rcx, [item_props]
     movzx ecx, byte [rcx+rax*8+6]   ; attack damage
@@ -1743,6 +1777,10 @@ player_attack:
 .d1:
     sub [r15+M_HEALTH], ecx
     call damage_selected_tool
+    jmp .dmg_done
+.d2:
+    sub [r15+M_HEALTH], ecx
+.dmg_done:
     mov eax, [r15+M_TYPE]
     lea rcx, [mob_hostile]
     cmp byte [rcx+rax], 0

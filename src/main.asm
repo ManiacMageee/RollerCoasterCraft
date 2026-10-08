@@ -58,6 +58,8 @@ start:
 %include "music.asm"
 %include "save.asm"
 %include "title.asm"
+%include "viewmodel.asm"
+%include "commands.asm"
 %ifdef AUDIO_TEST
 %include "audiotest.asm"
 %endif

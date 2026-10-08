@@ -31,6 +31,7 @@ game_init:
     call render_init
     call sky_init
     call mobs_init
+    call viewmodel_init
     mov dword [music_enabled], 1
     mov dword [music_mode], MUS_TITLE
     call audio_init
@@ -425,6 +426,22 @@ game_frame:
     mov byte [keys_pressed+'E'], 0
     jmp .ui_input_done
 .noe:
+    cmp byte [keys_pressed+'T'], 0      ; T: command line
+    je .not
+    xor ecx, ecx
+    call open_command_line
+    jmp .ui_input_done
+.not:
+    cmp byte [keys_pressed+0xBF], 0     ; '/': command line starting with /
+    je .noslash
+    mov ecx, 1
+    call open_command_line
+    jmp .ui_input_done
+.noslash:
+    cmp byte [keys_pressed+0x74], 0     ; F5: third person
+    je .nof5
+    xor dword [third_person], 1
+.nof5:
     cmp byte [keys_pressed+0x76], 0     ; F7: debug, skip a quarter day
     je .nof7
     movss xmm0, [time_of_day]
@@ -463,6 +480,7 @@ game_frame:
     movss xmm0, [frame_dt]
     call player_interact
 .skip_sim:
+    call camera_place
     call render_setup_camera
     call render_sky
     call render_celestial
@@ -470,18 +488,24 @@ game_frame:
     jne .loading_screen
     call render_world
     call render_mobs
+    call render_player_model
     call render_effects
-    call render_fog
     cmp dword [ui_open], UI_NONE
     jne .no_overlay
     call draw_crack_overlay
     call draw_target_outline
-    call draw_crosshair
 .no_overlay:
+    call render_fog
+    call render_viewmodel
+    cmp dword [ui_open], UI_NONE
+    jne .no_cross
+    call draw_crosshair
+.no_cross:
     call draw_hurt_flash
     cmp dword [ui_open], UI_DEAD
     je .no_hud
     call draw_hud
+    call draw_message
 .no_hud:
     cmp dword [show_debug], 0
     je .ui
@@ -496,6 +520,11 @@ game_frame:
     je .pause
     cmp eax, UI_DEAD
     je .dead
+    cmp eax, UI_CHAT
+    je .chat
+    ENDFRAME
+.chat:
+    call ui_chat_frame
     ENDFRAME
 .inv:
     call ui_inventory_frame
@@ -631,6 +660,8 @@ world_tick:
     call effects_update
     movss xmm0, [frame_dt]
     call autosave_tick
+    movss xmm0, [frame_dt]
+    call viewmodel_update
     ENDFRAME
 
 section .bss

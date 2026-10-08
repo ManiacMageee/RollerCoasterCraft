@@ -69,6 +69,7 @@ SFX_FUSE        equ 8
 SFX_EXPLODE     equ 9
 SFX_PICKUP      equ 10
 SFX_WOOD        equ 11
+SFX_SHOT        equ 12
 sfx_table:
     db 2, 100, 96,  9, 13, 0, 0,0       ; stone break: bright noise
     db 2, 70, 60,  10, 12, 0, 0,0       ; soft break (dirt/sand): dull noise
@@ -82,6 +83,7 @@ sfx_table:
     db 2, 60, 30,  70, 15, 0, 0,0       ; explosion
     db 0, 76, 88,   6, 11, 1, 0,0       ; pickup bloop
     db 0, 52, 47,   8, 13, 2, 0,0       ; wood knock
+    db 2, 108, 88,  8, 15, 0, 0,0       ; rifle shot
 
 section .bss
 alignb 8

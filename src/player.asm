@@ -19,6 +19,7 @@ f_ht        dd 1.8
 f_eye       dd 1.62
 f_skin      dd 0.001
 f_reach     dd 5.0
+ray_reach   dd 5.0                   ; raycast_target range (rifle uses 64)
 
 section .bss
 alignb 4
@@ -619,7 +620,7 @@ raycast_target:
     mov [LOCAL(60)], r13d
     mov [LOCAL(64)], r14d
     xorps xmm9, xmm9                ; distance travelled
-    mov r15d, 64
+    mov r15d, 256
 .walk:
     ; is the current cell solid?
     mov ecx, r12d
@@ -658,7 +659,7 @@ raycast_target:
     comiss xmm0, xmm2
     ja .go_z
     ; x
-    comiss xmm0, [f_reach]
+    comiss xmm0, [ray_reach]
     ja .done
     movss xmm9, xmm0
     add r12d, [LOCAL(80)]
@@ -668,7 +669,7 @@ raycast_target:
 .not_x:
     comiss xmm1, xmm2
     ja .go_z
-    comiss xmm1, [f_reach]
+    comiss xmm1, [ray_reach]
     ja .done
     movss xmm9, xmm1
     add r13d, [LOCAL(80)+4]
@@ -676,7 +677,7 @@ raycast_target:
     movss [LOCAL(100)+4], xmm1
     jmp .next
 .go_z:
-    comiss xmm2, [f_reach]
+    comiss xmm2, [ray_reach]
     ja .done
     movss xmm9, xmm2
     add r14d, [LOCAL(80)+8]
@@ -769,6 +770,21 @@ player_interact:
     maxss xmm1, xmm2
     movss [swing_timer], xmm1
     call raycast_target
+    ; gun timers
+    movss xmm0, [LOCAL(8)]
+    call gun_timers
+    ; holding the rifle: left button fires instead of mining
+    call selected_item
+    cmp eax, I_RIFLE
+    jne .not_gun
+    mov dword [mine_prog], 0
+    cmp byte [mouse_held], 0
+    je .mine_done
+    cmp byte [mouse_captured], 0
+    je .mine_done
+    call gun_fire
+    jmp .mine_done
+.not_gun:
 
     ; ---------------- mining
     cmp byte [mouse_held], 0
@@ -1421,4 +1437,95 @@ break_particles:
     FCONST xmm3, 4.0
     mov ecx, 14
     call particles_burst
+    ENDFRAME
+
+; -----------------------------------------------------------------------------
+; the automatic rifle
+; -----------------------------------------------------------------------------
+section .bss
+alignb 4
+gun_cool    resd 1                  ; time until the next shot
+gun_kick    resd 1                  ; recoil animation 1 -> 0
+muzzle_flash resd 1
+section .text
+
+; gun_timers(xmm0 = dt)
+gun_timers:
+    xorps xmm2, xmm2
+    movss xmm1, [gun_cool]
+    subss xmm1, xmm0
+    maxss xmm1, xmm2
+    movss [gun_cool], xmm1
+    movss xmm1, [muzzle_flash]
+    subss xmm1, xmm0
+    maxss xmm1, xmm2
+    movss [muzzle_flash], xmm1
+    movss xmm1, xmm0
+    mov eax, __float32__(9.0)
+    movd xmm3, eax
+    mulss xmm1, xmm3
+    movss xmm3, [gun_kick]
+    subss xmm3, xmm1
+    maxss xmm3, xmm2
+    movss [gun_kick], xmm3
+    ret
+
+; gun_fire - one bullet if the rifle has cooled down (~650 rounds/min)
+gun_fire:
+    FRAME 32
+    movss xmm0, [gun_cool]
+    xorps xmm1, xmm1
+    comiss xmm0, xmm1
+    ja .out
+    FCONST xmm0, 0.092
+    movss [gun_cool], xmm0
+    movss xmm0, [f_one]
+    movss [gun_kick], xmm0
+    FCONST xmm0, 0.05
+    movss [muzzle_flash], xmm0
+    mov ecx, SFX_SHOT
+    call sfx_play
+    ; long-range ray: first find the block it would hit
+    FCONST xmm0, 64.0
+    movss [ray_reach], xmm0
+    call raycast_target
+    FCONST xmm0, 5.0
+    movss [ray_reach], xmm0
+    FCONST xmm0, 64.0
+    cmp dword [tgt_valid], 0
+    je .range
+    movss xmm0, [tgt_dist]
+.range:
+    movss [LOCAL(8)], xmm0
+    call shoot_mobs
+    test eax, eax
+    jnz .recoil
+    cmp dword [tgt_valid], 0
+    je .recoil
+    ; sparks where the bullet hit the block
+    call look_vector
+    movss xmm3, [LOCAL(8)]
+    FCONST xmm4, 0.05
+    subss xmm3, xmm4
+    mulss xmm0, xmm3
+    mulss xmm1, xmm3
+    mulss xmm2, xmm3
+    addss xmm0, [cam_x]
+    addss xmm1, [cam_y]
+    addss xmm2, [cam_z]
+    FCONST xmm3, 3.0
+    mov ecx, 6
+    mov edx, R_ORANGE+13
+    call particles_burst
+.recoil:
+    ; muzzle climb
+    movss xmm0, [cam_pitch]
+    FCONST xmm1, 0.012
+    addss xmm0, xmm1
+    FCONST xmm1, 1.55
+    minss xmm0, xmm1
+    movss [cam_pitch], xmm0
+    ; put the normal 5-block target back for the outline
+    call raycast_target
+.out:
     ENDFRAME
