@@ -14,6 +14,11 @@ global start
 
 start:
     sub rsp, 40                     ; align stack + shadow space
+%ifdef AUDIO_TEST
+    call audio_selftest
+    xor ecx, ecx
+    call ExitProcess
+%endif
     call platform_init
     test eax, eax
     jz .exit
@@ -47,4 +52,9 @@ start:
 %include "sky.asm"
 %include "survival.asm"
 %include "mobs.asm"
+%include "audio.asm"
+%include "music.asm"
+%ifdef AUDIO_TEST
+%include "audiotest.asm"
+%endif
 %include "game.asm"

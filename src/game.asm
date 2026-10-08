@@ -29,6 +29,7 @@ game_init:
     call mesh_init
     call world_init
     call render_init
+    call audio_init
     mov dword [world_seed], 12345
     mov dword [show_debug], 1
     mov ecx, 0x5A8CE6
@@ -607,15 +608,6 @@ save_chunk:
     ret
 load_or_gen_chunk:
     jmp gen_chunk
-sfx_break:
-sfx_place:
-sfx_click:
-sfx_hit:
-sfx_fuse:
-sfx_explode:
-sfx_throw:
-sfx_hurt:
-sfx_eat:
 quit_to_title:
 title_frame:
     ret
@@ -632,6 +624,12 @@ world_tick:
     FRAME 0
     movss xmm0, [frame_dt]
     call daynight_update
+    mov eax, MUS_DAY
+    cmp dword [daylight], 8
+    jge .md
+    mov eax, MUS_NIGHT
+.md:
+    mov [music_mode], eax
     movss xmm0, [frame_dt]
     call survival_update
     movss xmm0, [frame_dt]
